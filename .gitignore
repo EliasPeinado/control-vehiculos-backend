@@ -1,0 +1,19 @@
+# Ignorar archivos de Visual Studio
+.vs/
+
+# Ignorar archivos de usuario
+*.user
+*.suo
+
+# Ignorar binarios
+bin/
+obj/
+
+# Ignorar dependencias
+packages/
+
+# Ignorar configuraciones locales
+appsettings.Development.json
+
+# Ignorar archivos de desarrollo local
+logs/

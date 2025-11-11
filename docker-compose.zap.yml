@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  # API para escanear
+  api:
+    build:
+      context: .
+      dockerfile: ControlVehiculos/Dockerfile
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+    networks:
+      - zap-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # OWASP ZAP Scanner
+  zap:
+    image: ghcr.io/zaproxy/zaproxy:stable
+    command: zap-baseline.py -t http://api:8080 -r zap-report.html -J zap-report.json -w zap-report.md -c zap-config.conf
+    volumes:
+      - ./security/zap:/zap/wrk:rw
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - zap-network
+
+networks:
+  zap-network:
+    driver: bridge

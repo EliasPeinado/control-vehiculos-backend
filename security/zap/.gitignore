@@ -1,0 +1,10 @@
+# Ignorar reportes generados por ZAP
+zap-report.*
+*.html
+*.json
+*.md
+*.xml
+
+# Permitir archivos de configuración
+!zap-config.conf
+!.gitignore
