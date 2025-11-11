@@ -7,6 +7,7 @@ public class Turno
     public Guid CentroId { get; set; }
     public DateTime FechaHora { get; set; }
     public Guid EstadoTurnoId { get; set; }
+    public Guid? CreadoPorUsuarioId { get; set; }
     public string? MotivoCancelacion { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
@@ -15,5 +16,6 @@ public class Turno
     public Vehiculo Vehiculo { get; set; } = null!;
     public CentroInspeccion Centro { get; set; } = null!;
     public EstadoTurno EstadoTurno { get; set; } = null!;
+    public Usuario? CreadoPorUsuario { get; set; }
     public Evaluacion? Evaluacion { get; set; }
 }

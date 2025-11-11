@@ -21,6 +21,17 @@ public class TurnosController : ControllerBase
     }
 
     /// <summary>
+    /// Obtiene listado de turnos con filtros opcionales
+    /// </summary>
+    [HttpGet]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAll([FromQuery] Guid? centroId = null, [FromQuery] string? matricula = null)
+    {
+        var turnos = await _turnoService.GetFilteredAsync(centroId, matricula);
+        return Ok(turnos);
+    }
+
+    /// <summary>
     /// Consulta disponibilidad de slots para un centro y fecha
     /// </summary>
     [HttpGet("slots")]
@@ -62,11 +73,14 @@ public class TurnosController : ControllerBase
 
     /// <summary>
     /// Confirma un turno previamente reservado
+    /// Solo INSPECTOR o ADMIN pueden confirmar turnos
     /// </summary>
     [HttpPost("{turnoId}/confirmar")]
+    [Authorize(Roles = "INSPECTOR,ADMIN")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Confirmar(Guid turnoId)
     {
         var result = await _turnoService.ConfirmarAsync(turnoId);
@@ -75,10 +89,13 @@ public class TurnosController : ControllerBase
 
     /// <summary>
     /// Cancela un turno
+    /// Solo ADMIN puede cancelar turnos
     /// </summary>
     [HttpPost("{turnoId}/cancelar")]
+    [Authorize(Roles = "ADMIN")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Cancelar(Guid turnoId, [FromBody] CancelarTurnoRequest request)
     {
         var result = await _turnoService.CancelarAsync(turnoId, request.Motivo);

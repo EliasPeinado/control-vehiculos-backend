@@ -22,11 +22,14 @@ public class VehiculosController : ControllerBase
 
     /// <summary>
     /// Crea un nuevo vehículo
+    /// Solo ADMIN puede crear vehículos
     /// </summary>
     [HttpPost]
+    [Authorize(Roles = "ADMIN")]
     [ProducesResponseType(typeof(VehiculoDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Create([FromBody] CreateVehiculoRequest request)
     {
         var vehiculo = await _vehiculoService.CreateAsync(request);
@@ -47,11 +50,14 @@ public class VehiculosController : ControllerBase
 
     /// <summary>
     /// Actualiza los datos de un vehículo
+    /// Solo ADMIN puede actualizar vehículos
     /// </summary>
     [HttpPut("{matricula}")]
+    [Authorize(Roles = "ADMIN")]
     [ProducesResponseType(typeof(VehiculoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Update(string matricula, [FromBody] UpdateVehiculoRequest request)
     {
         var vehiculo = await _vehiculoService.UpdateAsync(matricula, request);
@@ -71,6 +77,18 @@ public class VehiculosController : ControllerBase
     {
         var result = await _vehiculoService.GetEvaluacionesByMatriculaAsync(matricula, page, pageSize);
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Obtiene el historial completo de turnos de un vehículo
+    /// </summary>
+    [HttpGet("{matricula}/turnos")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetTurnos(string matricula)
+    {
+        var turnos = await _vehiculoService.GetTurnosByMatriculaAsync(matricula);
+        return Ok(turnos);
     }
 
     /// <summary>

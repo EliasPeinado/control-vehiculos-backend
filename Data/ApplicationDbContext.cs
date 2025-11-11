@@ -169,6 +169,11 @@ public class ApplicationDbContext : DbContext
                 .HasForeignKey(e => e.EstadoTurnoId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            entity.HasOne(e => e.CreadoPorUsuario)
+                .WithMany()
+                .HasForeignKey(e => e.CreadoPorUsuarioId)
+                .OnDelete(DeleteBehavior.SetNull);
+
             // Unique constraint for (CentroId, FechaHora)
             entity.HasIndex(e => new { e.CentroId, e.FechaHora }).IsUnique();
         });

@@ -4,6 +4,8 @@ using ControlVehiculos.Models.DTOs.Vehiculos;
 using ControlVehiculos.Models.Entities;
 using ControlVehiculos.Repositories.Interfaces;
 using ControlVehiculos.Services.Interfaces;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 
 namespace ControlVehiculos.Services;
 
@@ -11,11 +13,13 @@ public class TurnoService : ITurnoService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<TurnoService> _logger;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public TurnoService(IUnitOfWork unitOfWork, ILogger<TurnoService> _logger)
+    public TurnoService(IUnitOfWork unitOfWork, ILogger<TurnoService> logger, IHttpContextAccessor httpContextAccessor)
     {
         _unitOfWork = unitOfWork;
-        this._logger = _logger;
+        _logger = logger;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     public async Task<List<SlotDto>> GetSlotsAsync(Guid centroId, DateTime fecha)
@@ -97,6 +101,14 @@ public class TurnoService : ITurnoService
             throw new NotFoundException("Centro", request.CentroId);
         }
 
+        // Obtener el usuario logueado del contexto
+        Guid? creadoPorUsuarioId = null;
+        var userIdClaim = _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!string.IsNullOrEmpty(userIdClaim) && Guid.TryParse(userIdClaim, out var userId))
+        {
+            creadoPorUsuarioId = userId;
+        }
+
         var turno = new Turno
         {
             Id = Guid.NewGuid(),
@@ -104,6 +116,7 @@ public class TurnoService : ITurnoService
             CentroId = request.CentroId,
             FechaHora = request.FechaHora,
             EstadoTurnoId = estadoReservado.Id,
+            CreadoPorUsuarioId = creadoPorUsuarioId,
             CreatedAt = DateTime.UtcNow,
             Vehiculo = vehiculo,
             Centro = centro,
@@ -113,7 +126,9 @@ public class TurnoService : ITurnoService
         await _unitOfWork.Turnos.AddAsync(turno);
         await _unitOfWork.SaveChangesAsync();
 
-        return MapToDto(turno);
+        // Recargar con el usuario incluido
+        var turnoCompleto = await _unitOfWork.Turnos.GetByIdWithIncludesAsync(turno.Id);
+        return MapToDto(turnoCompleto!);
     }
 
     public async Task<TurnoDto?> GetByIdAsync(Guid turnoId)
@@ -181,6 +196,12 @@ public class TurnoService : ITurnoService
         return true;
     }
 
+    public async Task<List<TurnoDto>> GetFilteredAsync(Guid? centroId = null, string? matricula = null)
+    {
+        var turnos = await _unitOfWork.Turnos.GetFilteredAsync(centroId, matricula);
+        return turnos.Select(MapToDto).ToList();
+    }
+
     private static TurnoDto MapToDto(Turno turno)
     {
         return new TurnoDto
@@ -190,6 +211,7 @@ public class TurnoService : ITurnoService
             CentroId = turno.CentroId,
             FechaHora = turno.FechaHora,
             EstadoTurnoId = turno.EstadoTurnoId,
+            CreadoPorUsuarioId = turno.CreadoPorUsuarioId,
             EstadoTurno = new EstadoTurnoDto
             {
                 Id = turno.EstadoTurno.Id,
@@ -226,7 +248,13 @@ public class TurnoService : ITurnoService
                 Id = turno.Centro.Id,
                 Nombre = turno.Centro.Nombre,
                 Direccion = turno.Centro.Direccion
-            }
+            },
+            CreadoPorUsuario = turno.CreadoPorUsuario != null ? new UsuarioSimpleDto
+            {
+                Id = turno.CreadoPorUsuario.Id,
+                Nombre = turno.CreadoPorUsuario.Nombre,
+                Email = turno.CreadoPorUsuario.Email
+            } : null
         };
     }
 }

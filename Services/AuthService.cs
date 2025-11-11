@@ -52,7 +52,8 @@ public class AuthService : IAuthService
             AccessToken = accessToken,
             RefreshToken = refreshToken,
             TokenType = "Bearer",
-            ExpiresIn = 3600
+            ExpiresIn = 3600,
+            CodigoRol = roles.FirstOrDefault() ?? string.Empty
         };
     }
 
@@ -91,7 +92,8 @@ public class AuthService : IAuthService
             AccessToken = newAccessToken,
             RefreshToken = newRefreshToken,
             TokenType = "Bearer",
-            ExpiresIn = 3600
+            ExpiresIn = 3600,
+            CodigoRol = roles.FirstOrDefault() ?? string.Empty
         };
     }
 

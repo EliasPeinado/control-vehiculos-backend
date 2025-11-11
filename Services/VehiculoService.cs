@@ -2,6 +2,7 @@ using ControlVehiculos.Exceptions;
 using ControlVehiculos.Models.DTOs;
 using ControlVehiculos.Models.DTOs.Evaluaciones;
 using ControlVehiculos.Models.DTOs.Vehiculos;
+using ControlVehiculos.Models.DTOs.Turnos;
 using ControlVehiculos.Models.Entities;
 using ControlVehiculos.Repositories.Interfaces;
 using ControlVehiculos.Services.Interfaces;
@@ -211,6 +212,21 @@ public class VehiculoService : IVehiculoService
         return await _unitOfWork.Vehiculos.ExistsByMatriculaAsync(matricula);
     }
 
+    public async Task<List<TurnoDto>> GetTurnosByMatriculaAsync(string matricula)
+    {
+        // Validar que el vehículo existe
+        var vehiculo = await _unitOfWork.Vehiculos.FirstOrDefaultAsync(v => v.Matricula == matricula);
+        if (vehiculo == null)
+        {
+            throw new NotFoundException("Vehiculo", matricula);
+        }
+
+        // Obtener turnos usando Repository
+        var turnos = await _unitOfWork.Turnos.GetByMatriculaAsync(matricula);
+
+        return turnos.Select(MapTurnoToDto).ToList();
+    }
+
     // Métodos de mapeo (sin cambios)
     private static VehiculoDto MapToDto(Vehiculo vehiculo)
     {
@@ -272,6 +288,62 @@ public class VehiculoService : IVehiculoService
                     Orden = d.Chequeo.Orden
                 }
             }).ToList()
+        };
+    }
+
+    private static TurnoDto MapTurnoToDto(Turno turno)
+    {
+        return new TurnoDto
+        {
+            Id = turno.Id,
+            VehiculoId = turno.VehiculoId,
+            CentroId = turno.CentroId,
+            FechaHora = turno.FechaHora,
+            EstadoTurnoId = turno.EstadoTurnoId,
+            CreadoPorUsuarioId = turno.CreadoPorUsuarioId,
+            EstadoTurno = new EstadoTurnoDto
+            {
+                Id = turno.EstadoTurno.Id,
+                Codigo = turno.EstadoTurno.Codigo,
+                Nombre = turno.EstadoTurno.Nombre,
+                Orden = turno.EstadoTurno.Orden
+            },
+            Vehiculo = new VehiculoDto
+            {
+                Id = turno.Vehiculo.Id,
+                Matricula = turno.Vehiculo.Matricula,
+                Marca = turno.Vehiculo.Marca,
+                Modelo = turno.Vehiculo.Modelo,
+                Anio = turno.Vehiculo.Anio,
+                PropietarioId = turno.Vehiculo.PropietarioId,
+                EstadoVehiculoId = turno.Vehiculo.EstadoVehiculoId,
+                Propietario = new PropietarioDto
+                {
+                    Id = turno.Vehiculo.Propietario.Id,
+                    Nombre = turno.Vehiculo.Propietario.Nombre,
+                    Email = turno.Vehiculo.Propietario.Email,
+                    Telefono = turno.Vehiculo.Propietario.Telefono
+                },
+                EstadoVehiculo = new EstadoVehiculoDto
+                {
+                    Id = turno.Vehiculo.EstadoVehiculo.Id,
+                    Codigo = turno.Vehiculo.EstadoVehiculo.Codigo,
+                    Nombre = turno.Vehiculo.EstadoVehiculo.Nombre,
+                    Orden = turno.Vehiculo.EstadoVehiculo.Orden
+                }
+            },
+            Centro = new CentroInspeccionDto
+            {
+                Id = turno.Centro.Id,
+                Nombre = turno.Centro.Nombre,
+                Direccion = turno.Centro.Direccion
+            },
+            CreadoPorUsuario = turno.CreadoPorUsuario != null ? new UsuarioSimpleDto
+            {
+                Id = turno.CreadoPorUsuario.Id,
+                Nombre = turno.CreadoPorUsuario.Nombre,
+                Email = turno.CreadoPorUsuario.Email
+            } : null
         };
     }
 }

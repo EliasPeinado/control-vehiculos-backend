@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using ControlVehiculos.Exceptions;
 using ControlVehiculos.Models.DTOs.Evaluaciones;
 using ControlVehiculos.Models.Entities;
@@ -10,15 +11,31 @@ public class EvaluacionService : IEvaluacionService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<EvaluacionService> _logger;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public EvaluacionService(IUnitOfWork unitOfWork, ILogger<EvaluacionService> logger)
+    public EvaluacionService(IUnitOfWork unitOfWork, ILogger<EvaluacionService> logger, IHttpContextAccessor httpContextAccessor)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     public async Task<EvaluacionDto?> RegisterAsync(RegisterEvaluacionRequest request)
     {
+        // Obtener el inspector del usuario logueado
+        var userIdClaim = _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var inspectorId))
+        {
+            throw new BusinessRuleException("unauthorized", "No se pudo identificar al usuario logueado");
+        }
+
+        // Validate inspector exists
+        var inspector = await _unitOfWork.Usuarios.GetByIdAsync(inspectorId);
+        if (inspector == null)
+        {
+            throw new NotFoundException("Inspector", inspectorId);
+        }
+
         // Validate turno usando Repository
         var turno = await _unitOfWork.Turnos.GetByIdAsync(request.TurnoId);
 
@@ -28,11 +45,18 @@ public class EvaluacionService : IEvaluacionService
         }
 
         // Check if already has evaluation
-        var evaluacionExistente = await _unitOfWork.Evaluaciones.FirstOrDefaultAsync(e => e.TurnoId == request.TurnoId);
+        var evaluacionExistente = await _unitOfWork.Evaluaciones.GetByTurnoIdWithIncludesAsync(request.TurnoId);
         
         if (evaluacionExistente != null)
         {
-            throw new ConflictException("duplicate_evaluation", "El turno ya tiene una evaluación registrada");
+            // Solo permitir re-evaluación si el resultado anterior fue RECHEQUEO o CONDICIONAL
+            if (evaluacionExistente.Resultado.Codigo == "SEGURO")
+            {
+                throw new ConflictException("duplicate_evaluation", "El turno ya tiene una evaluación con resultado SEGURO y no puede ser re-evaluado");
+            }
+            
+            // Si hay una evaluación previa con RECHEQUEO o CONDICIONAL, eliminarla para permitir la nueva
+            _unitOfWork.Evaluaciones.Delete(evaluacionExistente);
         }
 
         if (request.Detalles.Count != 8)
@@ -54,7 +78,7 @@ public class EvaluacionService : IEvaluacionService
         {
             Id = Guid.NewGuid(),
             TurnoId = request.TurnoId,
-            InspectorId = request.InspectorId,
+            InspectorId = inspectorId,
             Fecha = DateTime.UtcNow,
             PuntajeTotal = puntajeTotal,
             ResultadoEvaluacionId = resultado.Id
@@ -75,12 +99,25 @@ public class EvaluacionService : IEvaluacionService
 
         await _unitOfWork.Evaluaciones.AddAsync(evaluacion);
 
-        // Update vehicle status
+        // Update turno status based on evaluation result
+        // COMPLETADO: solo si el resultado es SEGURO (evaluación exitosa y final)
+        // CONFIRMADO: si necesita re-evaluación (RECHEQUEO o CONDICIONAL)
+        string estadoTurnoCodigo = resultadoCodigo == "SEGURO" ? "COMPLETADO" : "CONFIRMADO";
+        var estadoTurno = await _unitOfWork.EstadosTurno.GetByCodigoAsync(estadoTurnoCodigo);
+        if (estadoTurno != null)
+        {
+            turno.EstadoTurnoId = estadoTurno.Id;
+            turno.UpdatedAt = DateTime.UtcNow;
+            _unitOfWork.Turnos.Update(turno);
+        }
+
+        // Update vehicle status based on evaluation result
         var vehiculo = await _unitOfWork.Vehiculos.GetByIdAsync(turno.VehiculoId);
         if (vehiculo != null)
         {
             var estadoVehiculoCodigo = resultadoCodigo == "SEGURO" ? "SEGURO" : 
-                                        resultadoCodigo == "RECHEQUEO" ? "RECHEQUEO" : "PENDIENTE";
+                                        resultadoCodigo == "RECHEQUEO" ? "RECHEQUEO" : 
+                                        resultadoCodigo == "CONDICIONAL" ? "CONDICIONAL" : "PENDIENTE";
 
             var estadoVehiculo = await _unitOfWork.EstadosVehiculo.GetByCodigoAsync(estadoVehiculoCodigo);
 

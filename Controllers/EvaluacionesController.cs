@@ -22,12 +22,16 @@ public class EvaluacionesController : ControllerBase
 
     /// <summary>
     /// Registra una nueva evaluación técnica con sus 8 puntos de chequeo
+    /// Solo INSPECTOR o ADMIN pueden crear evaluaciones
+    /// El inspector se obtiene automáticamente del usuario logueado
     /// </summary>
     [HttpPost]
+    [Authorize(Roles = "INSPECTOR,ADMIN")]
     [ProducesResponseType(typeof(EvaluacionDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Register([FromBody] RegisterEvaluacionRequest request)
     {
         var evaluacion = await _evaluacionService.RegisterAsync(request);

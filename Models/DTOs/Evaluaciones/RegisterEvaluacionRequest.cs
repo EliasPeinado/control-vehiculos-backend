@@ -8,9 +8,6 @@ public class RegisterEvaluacionRequest
     public Guid TurnoId { get; set; }
     
     [Required]
-    public Guid InspectorId { get; set; }
-    
-    [Required]
     [MinLength(8)]
     [MaxLength(8)]
     public List<EvaluacionDetalleInput> Detalles { get; set; } = new();

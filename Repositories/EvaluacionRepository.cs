@@ -20,6 +20,15 @@ public class EvaluacionRepository : Repository<Evaluacion>, IEvaluacionRepositor
             .FirstOrDefaultAsync(e => e.Id == id);
     }
 
+    public async Task<Evaluacion?> GetByTurnoIdWithIncludesAsync(Guid turnoId)
+    {
+        return await _dbSet
+            .Include(e => e.Resultado)
+            .Include(e => e.Detalles)
+                .ThenInclude(d => d.Chequeo)
+            .FirstOrDefaultAsync(e => e.TurnoId == turnoId);
+    }
+
     public async Task<(IEnumerable<Evaluacion> Items, int Total)> GetByVehiculoIdPagedAsync(Guid vehiculoId, int page, int pageSize)
     {
         var query = _dbSet
