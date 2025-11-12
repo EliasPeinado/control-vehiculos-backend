@@ -33,22 +33,15 @@ var loggerConfig = new LoggerConfiguration()
         outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}",
         retainedFileCountLimit: 30);
 
-// Agregar Seq de forma resiliente (no falla si no está disponible)
+// Agregar Seq si está configurado
 if (!string.IsNullOrEmpty(seqUrl))
 {
-    try
-    {
-        loggerConfig.WriteTo.Seq(
-            serverUrl: seqUrl,
-            restrictedToMinimumLevel: LogEventLevel.Information,
-            period: TimeSpan.FromSeconds(2),
-            batchPostingLimit: 100,
-            queueSizeLimit: 100000);
-    }
-    catch
-    {
-        // Si Seq no está disponible, continuar sin él
-    }
+    loggerConfig.WriteTo.Seq(
+        serverUrl: seqUrl,
+        restrictedToMinimumLevel: LogEventLevel.Information,
+        period: TimeSpan.FromSeconds(2),
+        batchPostingLimit: 100,
+        queueSizeLimit: 100000);
 }
 
 Log.Logger = loggerConfig.CreateLogger();

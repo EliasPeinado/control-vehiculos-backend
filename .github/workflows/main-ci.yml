@@ -69,7 +69,7 @@ jobs:
       - name: Start API
         run: |
           cd src/ControlVehiculos
-          nohup dotnet run > api.log 2>&1 &
+          nohup dotnet run --no-launch-profile > api.log 2>&1 &
           echo "Waiting for API to start..."
           sleep 45
           
