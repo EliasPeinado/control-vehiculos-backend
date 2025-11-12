@@ -1,0 +1,679 @@
+
+openapi: 3.0.3
+info:
+  title: Control del Estado de Vehículos API
+  description: |
+    API REST para la gestión de turnos y evaluación técnica anual de vehículos.
+    - Arquitectura: .NET 8 Web API, separación estricta FE/BE.
+    - Seguridad: JWT (Bearer).
+    - Catálogos reemplazan enums (EstadoTurno, EstadoVehiculo, ResultadoEvaluacion, Rol, Chequeo).
+    - Reglas de negocio:
+      * 8 puntos a chequear, cada uno con puntaje 1..10.
+      * Total > 80 => Seguro.
+      * Total < 40 => Rechequeo.
+      * Cualquier punto < 5 => Rechequeo.
+    Notas:
+      - Los IDs son UUID (formato: uuid).
+      - Los timestamps son UTC (format: date-time).
+      - Se proveen códigos lógicos (codigo) en catálogos para desacoplarse de GUIDs.
+  version: 1.0.0
+servers:
+  - url: https://api.example.com/v1
+    description: Producción
+  - url: https://staging.api.example.com/v1
+    description: Staging
+  - url: http://localhost:5070/v1
+    description: Desarrollo local
+tags:
+  - name: Auth
+    description: Autenticación y tokens
+  - name: Salud
+    description: Endpoints de observabilidad/health
+  - name: Vehículos
+  - name: Turnos
+  - name: Evaluaciones
+  - name: Catálogos
+  - name: Usuarios
+  - name: Centros
+paths:
+  /health:
+    get:
+      tags: [Salud]
+      summary: Comprobación de salud de la API
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Inicia sesión y devuelve un JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              default:
+                value: { email: "inspector@demo.org", password: "Passw0rd!" }
+      responses:
+        '200':
+          description: Token emitido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresca el access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Token refrescado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /vehiculos/{matricula}:
+    get:
+      tags: [Vehículos]
+      summary: Obtiene (o pre-registra) un vehículo por matrícula
+      description: |
+        Devuelve el vehículo si existe. Si no existe y `autoCreate=true`, lo pre-registra con datos mínimos.
+      parameters:
+        - $ref: '#/components/parameters/MatriculaParam'
+        - in: query
+          name: autoCreate
+          schema: { type: boolean, default: false }
+          description: Si es true, crea un registro mínimo si la matrícula no existe.
+      security: []
+      responses:
+        '200':
+          description: Vehículo encontrado o creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehiculo'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Vehículos]
+      summary: Actualiza datos del vehículo (propietario, marca, modelo, año, estado)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatriculaParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateVehiculoRequest'
+      responses:
+        '200':
+          description: Actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehiculo'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /vehiculos/{matricula}/evaluaciones:
+    get:
+      tags: [Vehículos, Evaluaciones]
+      summary: Lista evaluaciones del vehículo por matrícula
+      parameters:
+        - $ref: '#/components/parameters/MatriculaParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Listado paginado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedEvaluaciones'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /turnos/slots:
+    get:
+      tags: [Turnos]
+      summary: Consulta disponibilidad de turnos
+      parameters:
+        - in: query
+          name: centroId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: query
+          name: fecha
+          required: true
+          schema: { type: string, format: date }
+          description: Fecha local del centro
+      security: []
+      responses:
+        '200':
+          description: Lista de slots disponibles
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Slot' }
+  /turnos:
+    post:
+      tags: [Turnos]
+      summary: Reserva preliminar un turno
+      description: |
+        Crea un turno en estado *Reservado*. Falla con 409 si ya existe una reserva para (centroId, fechaHora).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTurnoRequest'
+            examples:
+              ok:
+                value: { matricula: "SBA1234", centroId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", fechaHora: "2025-10-20T13:00:00Z" }
+      responses:
+        '201':
+          description: Creado
+          headers:
+            Location:
+              schema: { type: string }
+              description: URL del recurso creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Turno' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /turnos/{turnoId}:
+    get:
+      tags: [Turnos]
+      summary: Obtiene un turno por ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TurnoIdParam'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Turno' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /turnos/{turnoId}/confirmar:
+    post:
+      tags: [Turnos]
+      summary: Confirma un turno reservado
+      description: Transiciona el estado del turno a *Confirmado* si es válido.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TurnoIdParam'
+      responses:
+        '204': { description: Confirmado }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /turnos/{turnoId}/cancelar:
+    post:
+      tags: [Turnos]
+      summary: Cancela un turno
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TurnoIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [motivo]
+              properties:
+                motivo: { type: string, maxLength: 200 }
+      responses:
+        '204': { description: Cancelado }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /evaluaciones:
+    post:
+      tags: [Evaluaciones]
+      summary: Registra una evaluación técnica
+      description: |
+        Crea la evaluación asociada a un turno y calcula el resultado según reglas.
+        Debe contener **exactamente 8** detalles (puntaje 1..10).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterEvaluacionRequest'
+      responses:
+        '201':
+          description: Creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Evaluacion' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /evaluaciones/{evaluacionId}:
+    get:
+      tags: [Evaluaciones]
+      summary: Obtiene una evaluación por ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EvaluacionIdParam'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Evaluacion' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /chequeos:
+    get:
+      tags: [Catálogos]
+      summary: Lista los puntos de chequeo activos (ordenados)
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Chequeo' }
+  /catalogos/estados-turno:
+    get:
+      tags: [Catálogos]
+      summary: Lista estados de turno
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/EstadoTurno' }
+  /catalogos/estados-vehiculo:
+    get:
+      tags: [Catálogos]
+      summary: Lista estados de vehículo
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/EstadoVehiculo' }
+  /catalogos/resultados-evaluacion:
+    get:
+      tags: [Catálogos]
+      summary: Lista resultados de evaluación
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ResultadoEvaluacion' }
+  /centros:
+    get:
+      tags: [Centros]
+      summary: Lista centros de inspección
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: Listado paginado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagedCentros' }
+  /usuarios:
+    get:
+      tags: [Usuarios]
+      summary: Lista usuarios (requiere rol Admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagedUsuarios' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    PageParam:
+      in: query
+      name: page
+      schema: { type: integer, minimum: 1, default: 1 }
+      description: Número de página (1-based).
+    PageSizeParam:
+      in: query
+      name: pageSize
+      schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
+      description: Tamaño de página.
+    MatriculaParam:
+      in: path
+      name: matricula
+      required: true
+      schema: { type: string, minLength: 5, maxLength: 12 }
+    TurnoIdParam:
+      in: path
+      name: turnoId
+      required: true
+      schema: { type: string, format: uuid }
+    EvaluacionIdParam:
+      in: path
+      name: evaluacionId
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    BadRequest:
+      description: Petición inválida
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            validation:
+              value: { code: "validation_error", message: "Campo 'puntaje' debe estar entre 1 y 10" }
+    Unauthorized:
+      description: No autenticado
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples: { default: { value: { code: "unauthorized", message: "Token inválido o ausente" } } }
+    Forbidden:
+      description: Prohibido
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples: { default: { value: { code: "forbidden", message: "Rol insuficiente" } } }
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples: { default: { value: { code: "not_found", message: "No existe vehículo con la matrícula" } } }
+    Conflict:
+      description: Conflicto de estado o unicidad
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            slot:
+              value: { code: "slot_conflict", message: "Ya existe un turno para (centro, fechaHora)" }
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status: { type: string, example: "Healthy" }
+        time: { type: string, format: date-time }
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        traceId: { type: string, nullable: true }
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              error: { type: string }
+    PageMeta:
+      type: object
+      properties:
+        page: { type: integer, example: 1 }
+        pageSize: { type: integer, example: 20 }
+        total: { type: integer, example: 123 }
+        hasNext: { type: boolean, example: true }
+    PagedEvaluaciones:
+      type: object
+      properties:
+        meta: { $ref: '#/components/schemas/PageMeta' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Evaluacion' }
+    PagedCentros:
+      type: object
+      properties:
+        meta: { $ref: '#/components/schemas/PageMeta' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CentroInspeccion' }
+    PagedUsuarios:
+      type: object
+      properties:
+        meta: { $ref: '#/components/schemas/PageMeta' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Usuario' }
+
+    # ---- Catálogos ----
+    EstadoTurno:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        codigo: { type: string, example: "CONFIRMADO" }
+        nombre: { type: string, example: "Confirmado" }
+        orden: { type: integer, example: 2 }
+    EstadoVehiculo:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        codigo: { type: string, example: "SEGURO" }
+        nombre: { type: string, example: "Seguro" }
+        orden: { type: integer, example: 2 }
+    ResultadoEvaluacion:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        codigo: { type: string, example: "RECHEQUEO" }
+        nombre: { type: string, example: "Rechequeo" }
+        orden: { type: integer, example: 1 }
+    Chequeo:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string, example: "Frenos" }
+        descripcion: { type: string, nullable: true }
+        orden: { type: integer, example: 1 }
+    Rol:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        codigo: { type: string, example: "INSPECTOR" }
+        nombre: { type: string, example: "Inspector" }
+
+    # ---- Entidades ----
+    Propietario:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string }
+        email: { type: string, format: email, nullable: true }
+        telefono: { type: string, nullable: true }
+    Vehiculo:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        matricula: { type: string }
+        marca: { type: string, nullable: true }
+        modelo: { type: string, nullable: true }
+        anio: { type: integer, nullable: true }
+        propietarioId: { type: string, format: uuid }
+        estadoVehiculoId: { type: string, format: uuid }
+        propietario: { $ref: '#/components/schemas/Propietario' }
+        estadoVehiculo: { $ref: '#/components/schemas/EstadoVehiculo' }
+    Usuario:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string }
+        email: { type: string, format: email }
+        roles:
+          type: array
+          items: { $ref: '#/components/schemas/Rol' }
+    CentroInspeccion:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string }
+        direccion: { type: string, nullable: true }
+    Turno:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        vehiculoId: { type: string, format: uuid }
+        centroId: { type: string, format: uuid }
+        fechaHora: { type: string, format: date-time }
+        estadoTurnoId: { type: string, format: uuid }
+        estadoTurno: { $ref: '#/components/schemas/EstadoTurno' }
+        vehiculo: { $ref: '#/components/schemas/Vehiculo' }
+        centro: { $ref: '#/components/schemas/CentroInspeccion' }
+    EvaluacionDetalle:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        evaluacionId: { type: string, format: uuid }
+        chequeoId: { type: string, format: uuid }
+        puntaje: { type: integer, minimum: 1, maximum: 10 }
+        observacion: { type: string, nullable: true, maxLength: 500 }
+        chequeo: { $ref: '#/components/schemas/Chequeo' }
+    Evaluacion:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        turnoId: { type: string, format: uuid }
+        inspectorId: { type: string, format: uuid }
+        fecha: { type: string, format: date-time }
+        puntajeTotal: { type: integer, minimum: 0, maximum: 80 }
+        resultadoEvaluacionId: { type: string, format: uuid }
+        resultado: { $ref: '#/components/schemas/ResultadoEvaluacion' }
+        detalles:
+          type: array
+          minItems: 8
+          maxItems: 8
+          items: { $ref: '#/components/schemas/EvaluacionDetalle' }
+
+    # ---- Requests/DTO ----
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+    LoginResponse:
+      type: object
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        tokenType: { type: string, example: "Bearer" }
+        expiresIn: { type: integer, example: 3600 }
+    Slot:
+      type: object
+      properties:
+        inicio: { type: string, format: date-time, example: "2025-10-20T13:00:00Z" }
+        fin: { type: string, format: date-time, example: "2025-10-20T13:30:00Z" }
+        disponible: { type: boolean, example: true }
+    CreateTurnoRequest:
+      type: object
+      required: [matricula, centroId, fechaHora]
+      properties:
+        matricula: { type: string }
+        centroId: { type: string, format: uuid }
+        fechaHora: { type: string, format: date-time }
+    UpdateVehiculoRequest:
+      type: object
+      properties:
+        marca: { type: string, nullable: true }
+        modelo: { type: string, nullable: true }
+        anio: { type: integer, nullable: true }
+        propietarioId: { type: string, format: uuid, nullable: true }
+        estadoVehiculoId: { type: string, format: uuid, nullable: true }
+    EvaluacionDetalleInput:
+      type: object
+      required: [chequeoId, puntaje]
+      properties:
+        chequeoId: { type: string, format: uuid }
+        puntaje: { type: integer, minimum: 1, maximum: 10 }
+        observacion: { type: string, nullable: true, maxLength: 500 }
+    RegisterEvaluacionRequest:
+      type: object
+      required: [turnoId, inspectorId, detalles]
+      properties:
+        turnoId: { type: string, format: uuid }
+        inspectorId: { type: string, format: uuid }
+        detalles:
+          type: array
+          minItems: 8
+          maxItems: 8
+          items: { $ref: '#/components/schemas/EvaluacionDetalleInput' }
+
+security:
+  - bearerAuth: []
