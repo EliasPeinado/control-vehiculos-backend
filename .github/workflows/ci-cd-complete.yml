@@ -193,6 +193,7 @@ jobs:
           rules_file_name: 'security/zap/zap-config.conf'
           cmd_options: '-a -j -I'
           fail_action: false
+          artifact_name: ''
 
       - name: 📤 Upload ZAP Report
         if: always()
