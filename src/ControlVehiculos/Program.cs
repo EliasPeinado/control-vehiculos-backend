@@ -14,7 +14,11 @@ using OpenTelemetry.Trace;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Logs;
 
+var builder = WebApplication.CreateBuilder(args);
+
 // Configurar Serilog
+var seqUrl = builder.Configuration["Serilog:SeqServerUrl"];
+
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
@@ -29,9 +33,8 @@ Log.Logger = new LoggerConfiguration()
         rollingInterval: RollingInterval.Day,
         outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}",
         retainedFileCountLimit: 30)
+    .WriteTo.Seq(seqUrl ?? "http://localhost:5341")
     .CreateLogger();
-
-var builder = WebApplication.CreateBuilder(args);
 
 // Usar Serilog como proveedor de logging
 builder.Host.UseSerilog();
