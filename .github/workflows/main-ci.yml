@@ -11,6 +11,12 @@ on:
       - develop
   workflow_dispatch:
 
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+  issues: write
+
 env:
   DOTNET_VERSION: 8.0.x
 
@@ -101,7 +107,9 @@ jobs:
         uses: zaproxy/action-baseline@v0.12.0
         with:
           target: http://localhost:5000
+          cmd_options: '-a -j -I -l INFO'
           fail_action: false
+          allow_issue_writing: false
         continue-on-error: true
 
   docker-build:

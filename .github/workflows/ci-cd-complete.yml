@@ -7,6 +7,12 @@ on:
     branches: [ main, develop ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+  issues: write
+
 env:
   DOTNET_VERSION: '8.0.x'
   ASPNETCORE_ENVIRONMENT: 'Development'
@@ -181,8 +187,9 @@ jobs:
         with:
           target: 'http://localhost:5000'
           rules_file_name: 'security/zap/zap-config.conf'
-          cmd_options: '-a -j -I'
+          cmd_options: '-a -j -I -l INFO'
           fail_action: false
+          allow_issue_writing: false
         continue-on-error: true
 
       - name: 📊 Parse ZAP Results
