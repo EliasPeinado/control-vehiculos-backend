@@ -117,7 +117,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowSpecificOrigins", policy =>
     {
         var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() 
-            ?? new[] { "http://localhost:4200", "http://localhost:3000" };
+            ?? new[] { "http://localhost:4200", "http://localhost:3000","https://controlvehiculos.com","https://control-vehiculos-frontend.vercel.app" };
         
         policy.WithOrigins(allowedOrigins)
               .AllowAnyMethod()
