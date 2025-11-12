@@ -126,6 +126,9 @@ jobs:
     name: 🔒 OWASP ZAP Security Scan
     runs-on: ubuntu-latest
     needs: build
+    permissions:
+      contents: read
+      issues: write
     
     services:
       sqlserver:
