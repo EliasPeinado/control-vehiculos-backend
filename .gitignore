@@ -1,0 +1,118 @@
+## .gitignore for .NET 8 Web API Project
+## Control de Vehiculos - Backend
+
+# ============================================
+# Visual Studio / Rider
+# ============================================
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# ============================================
+# Build Results
+# ============================================
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# ============================================
+# .NET Core
+# ============================================
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ============================================
+# NuGet Packages
+# ============================================
+*.nupkg
+*.snupkg
+packages/
+
+# ============================================
+# Test Results
+# ============================================
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.VisualState.xml
+TestResult.xml
+nunit-*.xml
+*.trx
+coveragereport/
+TestResults/
+CodeCoverage/
+
+# ============================================
+# ASP.NET Scaffolding
+# ============================================
+ScaffoldingReadMe.txt
+
+# ============================================
+# Local Configuration (Secrets)
+# ============================================
+appsettings.Development.json
+appsettings.Local.json
+*.pfx
+*.p12
+
+# ============================================
+# Logs
+# ============================================
+logs/
+*.log
+
+# ============================================
+# Temporary Files
+# ============================================
+~$*
+*~
+*.tmp
+*.temp
+
+# ============================================
+# MSBuild Binary and Structured Log
+# ============================================
+*.binlog
+
+# ============================================
+# Docker
+# ============================================
+**/obj/Docker/
+
+# ============================================
+# Security / OWASP ZAP Reports
+# ============================================
+report_html.html
+report_json.json
+report_md.md
+zap-report/
+
+# ============================================
+# OS Files
+# ============================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================================
+# Documentation (Markdown files)
+# ============================================
+*.md
+!README.md
+!CONTRIBUTING.md
+!LICENSE.md
+!CHANGELOG.md

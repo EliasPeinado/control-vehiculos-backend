@@ -1,0 +1,73 @@
+name: Security Scan with OWASP ZAP
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Ejecutar semanalmente los lunes a las 2 AM
+    - cron: '0 2 * * 1'
+  workflow_dispatch:
+
+jobs:
+  zap-scan:
+    runs-on: ubuntu-latest
+    name: OWASP ZAP Baseline Scan
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore src/ControlVehiculos/ControlVehiculos.csproj
+
+      - name: Build application
+        run: dotnet build src/ControlVehiculos/ControlVehiculos.csproj --no-restore
+
+      - name: Start API
+        run: |
+          cd src/ControlVehiculos
+          dotnet run --no-build &
+          echo "Waiting for API to start..."
+          sleep 30
+          curl -f http://localhost:5000/v1/health || exit 1
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ASPNETCORE_URLS: http://localhost:5000
+
+      - name: Run OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: 'http://localhost:5000'
+          rules_file_name: 'security/zap/zap-config.conf'
+          cmd_options: '-a -j -I'
+          
+      - name: Upload ZAP Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zap-scan-report
+          path: |
+            report_html.html
+            report_json.json
+            report_md.md
+          retention-days: 30
+
+      - name: Create Issue on High Severity
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🔒 Security Alert: High Severity Vulnerabilities Found',
+              body: 'OWASP ZAP scan detected high severity vulnerabilities. Please review the scan report in the workflow artifacts.',
+              labels: ['security', 'high-priority']
+            })
