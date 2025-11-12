@@ -52,6 +52,7 @@ jobs:
         env:
           ASPNETCORE_ENVIRONMENT: Development
           ASPNETCORE_URLS: http://localhost:5000
+          ConnectionStrings__DefaultConnection: "Server=tcp:31.97.250.116,1433;Initial Catalog=Test;Persist Security Info=False;User ID=sa;Password=P7d^rZ2@qX8v#F4nL9s*Yw0kT6hM;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=True;Connection Timeout=30;"
 
       - name: Run OWASP ZAP Baseline Scan
         uses: zaproxy/action-baseline@v0.12.0
