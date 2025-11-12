@@ -8,6 +8,7 @@
 # Ignorar binarios
 bin/
 obj/
+*.md
 
 # Ignorar dependencias
 packages/
