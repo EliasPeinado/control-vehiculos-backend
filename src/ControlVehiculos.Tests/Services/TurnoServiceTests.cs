@@ -84,6 +84,18 @@ public class TurnoServiceTests
         _unitOfWorkMock.Setup(x => x.Centros.GetByIdAsync(centroId))
             .ReturnsAsync(centro);
 
+        _unitOfWorkMock.Setup(x => x.Propietarios.AddAsync(It.IsAny<Propietario>()))
+            .ReturnsAsync(It.IsAny<Propietario>());
+
+        _unitOfWorkMock.Setup(x => x.Vehiculos.AddAsync(It.IsAny<Vehiculo>()))
+            .ReturnsAsync(It.IsAny<Vehiculo>());
+
+        _unitOfWorkMock.Setup(x => x.Turnos.AddAsync(It.IsAny<Turno>()))
+            .ReturnsAsync(It.IsAny<Turno>());
+
+        _unitOfWorkMock.Setup(x => x.SaveChangesAsync())
+            .ReturnsAsync(1);
+
         var turnoCreado = new Turno
         {
             Id = Guid.NewGuid(),
