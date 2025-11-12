@@ -24,6 +24,7 @@ public class TurnoService : ITurnoService
 
     public async Task<List<SlotDto>> GetSlotsAsync(Guid centroId, DateTime fecha)
     {
+        _logger.LogInformation("Consultando slots disponibles para Centro {CentroId} en fecha {Fecha}", centroId, fecha.ToString("yyyy-MM-dd"));
         var slots = new List<SlotDto>();
         var startTime = fecha.Date.AddHours(8);
         var endTime = fecha.Date.AddHours(18);
@@ -77,6 +78,7 @@ public class TurnoService : ITurnoService
 
             await _unitOfWork.Propietarios.AddAsync(propietario);
             await _unitOfWork.Vehiculos.AddAsync(vehiculo);
+            _logger.LogInformation("Vehículo nuevo auto-creado: Matrícula {Matricula}", request.Matricula);
         }
 
         // Check if slot is available usando Repository
@@ -126,6 +128,9 @@ public class TurnoService : ITurnoService
         await _unitOfWork.Turnos.AddAsync(turno);
         await _unitOfWork.SaveChangesAsync();
 
+        _logger.LogInformation("Turno creado exitosamente: TurnoId {TurnoId}, Matrícula {Matricula}, Centro {CentroNombre}, Fecha {FechaHora}, Usuario {UsuarioId}",
+            turno.Id, vehiculo.Matricula, centro.Nombre, request.FechaHora.ToString("yyyy-MM-dd HH:mm"), creadoPorUsuarioId?.ToString() ?? "Anónimo");
+
         // Recargar con el usuario incluido
         var turnoCompleto = await _unitOfWork.Turnos.GetByIdWithIncludesAsync(turno.Id);
         return MapToDto(turnoCompleto!);
@@ -167,6 +172,8 @@ public class TurnoService : ITurnoService
         _unitOfWork.Turnos.Update(turno);
         await _unitOfWork.SaveChangesAsync();
 
+        _logger.LogInformation("Turno confirmado: TurnoId {TurnoId}, Estado: RESERVADO → CONFIRMADO", turnoId);
+
         return true;
     }
 
@@ -192,6 +199,8 @@ public class TurnoService : ITurnoService
         
         _unitOfWork.Turnos.Update(turno);
         await _unitOfWork.SaveChangesAsync();
+
+        _logger.LogWarning("Turno cancelado: TurnoId {TurnoId}, Motivo: {Motivo}", turnoId, motivo);
 
         return true;
     }

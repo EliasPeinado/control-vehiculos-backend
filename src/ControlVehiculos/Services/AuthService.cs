@@ -14,19 +14,28 @@ public class AuthService : IAuthService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<AuthService> _logger;
 
-    public AuthService(IUnitOfWork unitOfWork, IConfiguration configuration)
+    public AuthService(IUnitOfWork unitOfWork, IConfiguration configuration, ILogger<AuthService> logger)
     {
         _unitOfWork = unitOfWork;
         _configuration = configuration;
+        _logger = logger;
     }
 
     public async Task<LoginResponse?> LoginAsync(LoginRequest request)
     {
         var usuario = await _unitOfWork.Usuarios.GetByEmailWithRolesAsync(request.Email);
 
-        if (usuario == null || !BCrypt.Net.BCrypt.Verify(request.Password, usuario.PasswordHash))
+        if (usuario == null)
         {
+            _logger.LogWarning("⚠️ Intento de login fallido: Usuario no encontrado - Email {Email}", request.Email);
+            return null;
+        }
+
+        if (!BCrypt.Net.BCrypt.Verify(request.Password, usuario.PasswordHash))
+        {
+            _logger.LogWarning("⚠️ Intento de login fallido: Contraseña incorrecta - Email {Email}, UsuarioId {UsuarioId}", request.Email, usuario.Id);
             return null;
         }
 
@@ -47,6 +56,8 @@ public class AuthService : IAuthService
         await _unitOfWork.RefreshTokens.AddAsync(refreshTokenEntity);
         await _unitOfWork.SaveChangesAsync();
 
+        _logger.LogInformation("✅ Login exitoso: Usuario {Email} (Id: {UsuarioId}), Rol: {Rol}", usuario.Email, usuario.Id, roles.FirstOrDefault() ?? "Sin rol");
+
         return new LoginResponse
         {
             AccessToken = accessToken,
@@ -61,8 +72,15 @@ public class AuthService : IAuthService
     {
         var tokenEntity = await _unitOfWork.RefreshTokens.GetByTokenWithUserAsync(refreshToken);
 
-        if (tokenEntity == null || tokenEntity.ExpiresAt < DateTime.UtcNow)
+        if (tokenEntity == null)
         {
+            _logger.LogWarning("⚠️ Intento de refresh token inválido: Token no encontrado");
+            return null;
+        }
+
+        if (tokenEntity.ExpiresAt < DateTime.UtcNow)
+        {
+            _logger.LogWarning("⚠️ Intento de refresh token expirado: UsuarioId {UsuarioId}", tokenEntity.UsuarioId);
             return null;
         }
 

@@ -130,6 +130,9 @@ public class EvaluacionService : IEvaluacionService
 
         await _unitOfWork.SaveChangesAsync();
 
+        _logger.LogInformation("📋 Evaluación registrada: EvaluacionId {EvaluacionId}, TurnoId {TurnoId}, Inspector {InspectorId}, Resultado: {Resultado}, Puntaje: {Puntaje}/100, Vehículo: {Matricula}",
+            evaluacion.Id, request.TurnoId, inspectorId, resultadoCodigo, puntajeTotal, vehiculo?.Matricula ?? "N/A");
+
         return await GetByIdAsync(evaluacion.Id);
     }
 
