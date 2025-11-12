@@ -1,4 +1,3 @@
-using ControlVehiculos.Exceptions;
 using ControlVehiculos.Models.DTOs.Auth;
 using ControlVehiculos.Models.Entities;
 using ControlVehiculos.Repositories.Interfaces;
@@ -30,7 +29,7 @@ public class AuthServiceTests
         jwtSection.Setup(x => x["Audience"]).Returns("TestAudience");
         _configurationMock.Setup(x => x.GetSection("JwtSettings")).Returns(jwtSection.Object);
 
-        _authService = new AuthService(_unitOfWorkMock.Object, _configurationMock.Object, _loggerMock.Object);
+        _authService = new AuthService(_unitOfWorkMock.Object, _configurationMock.Object);
     }
 
     [Fact]
@@ -68,6 +67,10 @@ public class AuthServiceTests
 
         _unitOfWorkMock.Setup(x => x.Usuarios.GetByEmailWithRolesAsync(email))
             .ReturnsAsync(usuario);
+        
+        var refreshTokensMock = new Mock<IRefreshTokenRepository>();
+        _unitOfWorkMock.Setup(x => x.RefreshTokens).Returns(refreshTokensMock.Object);
+        _unitOfWorkMock.Setup(x => x.SaveChangesAsync()).ReturnsAsync(1);
 
         var loginRequest = new LoginRequest
         {
@@ -80,15 +83,14 @@ public class AuthServiceTests
 
         // Assert
         result.Should().NotBeNull();
-        result.Token.Should().NotBeNullOrEmpty();
+        result!.AccessToken.Should().NotBeNullOrEmpty();
         result.RefreshToken.Should().NotBeNullOrEmpty();
-        result.Usuario.Should().NotBeNull();
-        result.Usuario.Email.Should().Be(email);
-        result.Usuario.Nombre.Should().Be("Test User");
+        result.TokenType.Should().Be("Bearer");
+        result.CodigoRol.Should().Be("CLIENTE");
     }
 
     [Fact]
-    public async Task LoginAsync_WithInvalidEmail_ThrowsUnauthorizedException()
+    public async Task LoginAsync_WithInvalidEmail_ReturnsNull()
     {
         // Arrange
         var email = "nonexistent@example.com";
@@ -104,15 +106,14 @@ public class AuthServiceTests
         };
 
         // Act
-        Func<Task> act = async () => await _authService.LoginAsync(loginRequest);
+        var result = await _authService.LoginAsync(loginRequest);
 
         // Assert
-        await act.Should().ThrowAsync<UnauthorizedException>()
-            .WithMessage("Credenciales inválidas");
+        result.Should().BeNull();
     }
 
     [Fact]
-    public async Task LoginAsync_WithInvalidPassword_ThrowsUnauthorizedException()
+    public async Task LoginAsync_WithInvalidPassword_ReturnsNull()
     {
         // Arrange
         var email = "test@example.com";
@@ -139,11 +140,10 @@ public class AuthServiceTests
         };
 
         // Act
-        Func<Task> act = async () => await _authService.LoginAsync(loginRequest);
+        var result = await _authService.LoginAsync(loginRequest);
 
         // Assert
-        await act.Should().ThrowAsync<UnauthorizedException>()
-            .WithMessage("Credenciales inválidas");
+        result.Should().BeNull();
     }
 
     [Fact]
