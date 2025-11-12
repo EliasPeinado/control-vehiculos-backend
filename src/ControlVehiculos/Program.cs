@@ -18,8 +18,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Configurar Serilog
 var seqUrl = builder.Configuration["Serilog:SeqServerUrl"];
-
-Log.Logger = new LoggerConfiguration()
+var loggerConfig = new LoggerConfiguration()
     .MinimumLevel.Information()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
     .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
@@ -32,9 +31,27 @@ Log.Logger = new LoggerConfiguration()
         path: "logs/controlvehiculos-.log",
         rollingInterval: RollingInterval.Day,
         outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}",
-        retainedFileCountLimit: 30)
-    .WriteTo.Seq(seqUrl ?? "http://localhost:5341")
-    .CreateLogger();
+        retainedFileCountLimit: 30);
+
+// Agregar Seq de forma resiliente (no falla si no está disponible)
+if (!string.IsNullOrEmpty(seqUrl))
+{
+    try
+    {
+        loggerConfig.WriteTo.Seq(
+            serverUrl: seqUrl,
+            restrictedToMinimumLevel: LogEventLevel.Information,
+            period: TimeSpan.FromSeconds(2),
+            batchPostingLimit: 100,
+            queueSizeLimit: 100000);
+    }
+    catch
+    {
+        // Si Seq no está disponible, continuar sin él
+    }
+}
+
+Log.Logger = loggerConfig.CreateLogger();
 
 // Usar Serilog como proveedor de logging
 builder.Host.UseSerilog();

@@ -29,7 +29,7 @@ public class AuthServiceTests
         jwtSection.Setup(x => x["Audience"]).Returns("TestAudience");
         _configurationMock.Setup(x => x.GetSection("JwtSettings")).Returns(jwtSection.Object);
 
-        _authService = new AuthService(_unitOfWorkMock.Object, _configurationMock.Object);
+        _authService = new AuthService(_unitOfWorkMock.Object, _configurationMock.Object, _loggerMock.Object);
     }
 
     [Fact]
