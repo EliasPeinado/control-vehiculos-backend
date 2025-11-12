@@ -63,18 +63,7 @@ jobs:
           target: 'http://localhost:5000'
           rules_file_name: 'security/zap/zap-config.conf'
           cmd_options: '-a -j -I'
-          artifact_name: ''
-          
-      - name: Upload ZAP Report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: zap-scan-report
-          path: |
-            report_html.html
-            report_json.json
-            report_md.md
-          retention-days: 30
+        continue-on-error: true
 
       - name: Create Issue on High Severity
         if: failure()
